@@ -1,18 +1,106 @@
----
-layout: default
----
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Consult Utah — AI enablement for modern teams</title>
+  <meta name="description" content="Consult Utah helps businesses AI-enable engineering teams and knowledge workers with practical automation, product strategy, and implementation." />
+  <link rel="canonical" href="https://consultutah.com/" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="/"><span class="logo">CU</span><span>Consult Utah</span></a>
+      <nav class="nav-links" aria-label="Main navigation">
+        <a class="active" href="/">Home</a>
+        <a href="/services/">Services</a>
+        <a href="/apps/">Apps</a>
+        <a href="/privacy/">Privacy</a>
+        <a href="/support/">Support</a>
+      </nav>
+    </div>
+  </header>
 
-<div class="posts">
-  {% for post in site.posts %}
-    <article class="post">
-
-      <h1><a href="{{ site.baseurl }}{{ post.url }}">{{ post.title }}</a></h1>
-
-      <div class="entry">
-        {{ post.excerpt }}
+  <main>
+    <section class="hero">
+      <div class="container">
+        <div class="kicker">AI consultancy · software systems · practical enablement</div>
+        <h1>Help your team turn AI from a buzzword into working leverage.</h1>
+        <p class="lede">Consult Utah helps businesses AI-enable engineering teams and everyday operators with clear strategy, useful internal tools, automation, and hands-on implementation.</p>
+        <div class="actions">
+          <a class="button primary" href="mailto:jeff@consultutah.com?subject=Consult%20Utah%20AI%20enablement">Start a conversation</a>
+          <a class="button" href="/services/">See services</a>
+        </div>
       </div>
+    </section>
 
-      <a href="{{ site.baseurl }}{{ post.url }}" class="read-more">Read More</a>
-    </article>
-  {% endfor %}
-</div>
+    <section class="section">
+      <div class="container split">
+        <div>
+          <div class="kicker">What we do</div>
+          <h2>AI adoption without the theater.</h2>
+          <p class="lede">We focus on workflows that save time, improve quality, and compound inside real teams: engineering, operations, sales, customer support, leadership, and internal knowledge work.</p>
+        </div>
+        <div class="card">
+          <h3>Typical engagements</h3>
+          <ul class="checklist">
+            <li>AI workflow audits and opportunity maps</li>
+            <li>Engineering team enablement and coding-agent adoption</li>
+            <li>Internal tools, automations, and agent-assisted processes</li>
+            <li>Prototype-to-production software delivery</li>
+            <li>Training for non-technical teams using AI safely and effectively</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="grid cols-3">
+          <article class="card">
+            <h3>Engineering enablement</h3>
+            <p>Adopt AI coding tools, code-review workflows, documentation agents, and reliable automation without turning your repo into a science project.</p>
+          </article>
+          <article class="card">
+            <h3>Worker productivity</h3>
+            <p>Build practical AI workflows for research, reporting, CRM hygiene, content, inbox triage, knowledge retrieval, and repetitive back-office work.</p>
+          </article>
+          <article class="card">
+            <h3>Custom software</h3>
+            <p>Ship focused internal tools, lightweight apps, integrations, and automations that meet people where they already work.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container band">
+        <div class="split">
+          <div>
+            <div class="kicker">Apps by Consult Utah</div>
+            <h2>We also build focused software products.</h2>
+            <p>Our apps page hosts product information, support links, privacy policies, and terms for apps we build and operate.</p>
+          </div>
+          <div class="actions">
+            <a class="button primary" href="/apps/">View apps</a>
+            <a class="button" href="/apps/peptidetrax/">PeptideTrax</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div>© <span id="year">2026</span> Consult Utah. All rights reserved.</div>
+      <div>
+        <a href="/privacy/">Privacy</a>
+        <a href="/terms/">Terms</a>
+        <a href="/support/">Support</a>
+      </div>
+    </div>
+  </footer>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>

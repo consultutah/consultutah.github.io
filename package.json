@@ -1,0 +1,11 @@
+{
+  "name": "consultutah.com",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Static website for Consult Utah and app legal/support pages.",
+  "scripts": {
+    "check": "node scripts/check-links.mjs",
+    "serve": "python3 -m http.server 4173"
+  },
+  "devDependencies": {}
+}
