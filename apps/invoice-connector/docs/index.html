@@ -1,0 +1,1203 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Invoice Connector MCP documentation — Consult Utah</title><meta name="description" content="MCP tools, OAuth account linking, invoice schemas, PDF export and payment integration documentation."><link rel="stylesheet" href="/assets/styles.css"></head><body><header class="nav"><div class="container nav-inner"><a class="brand" href="/">Consult Utah</a><nav class="nav-links"><a href="/apps/invoice-connector/">Invoice Connector</a><a href="/support/">Support</a></nav></div></header><main><section class="page-header"><div class="container"><h1>Invoice Connector MCP documentation</h1></div></section><section class="section"><div class="container">
+<p class="notice"><strong>Pre-release technical documentation · Updated September 20, 2026.</strong> The implementation is tested locally; no production MCP endpoint is published yet. Hosted login/provider configuration, Cloudflare deployment, real Stripe sandbox verification and Muse end-to-end verification remain launch requirements. This page is documentation, not the MCP endpoint.</p>
+<h2>Overview</h2><p>Consult Utah Invoice Connector creates editable English/USD invoices, saves business/client details, renders free watermarked draft PDFs and charges $1.99 USD for a final PDF. It does not collect the invoice balance from the recipient.</p>
+<p><a href="tools.json">All 20 tool input schemas (JSON)</a> · <a href="openapi.json">REST OpenAPI 3.1 (JSON)</a></p>
+<h2>Connection and transport</h2><p>Use <strong>Existing MCP</strong> when configuring Muse. The hosted endpoint will be <code>POST /mcp</code> on the deployed Worker. No live base URL is available yet; never substitute this website URL. Requests use JSON-RPC 2.0, <code>Content-Type: application/json</code>, and an OAuth bearer access token in the Authorization header. No query-string tokens are accepted.</p>
+<p>The current adapter is stateless, returns JSON (not SSE), and implements <code>initialize</code>, <code>ping</code>, <code>tools/list</code> and <code>tools/call</code>. It advertises protocol <code>2025-03-26</code>; notifications return HTTP 202. It does not provide a persistent session ID, SSE GET stream or standalone resources/list endpoint. Actual Muse transport and PDF-display compatibility must be verified.</p>
+<h2>Account linking and OAuth</h2><ol>
+<li>An unauthenticated request gets HTTP 401 with a <code>WWW-Authenticate</code> challenge pointing to <code>/.well-known/oauth-protected-resource/mcp</code>.</li>
+<li>The public metadata declares the canonical HTTPS resource URL, configured authorization server and required <code>invoice:access</code> scope. The root <code>/.well-known/oauth-protected-resource</code> route returns the same metadata.</li>
+<li>Muse discovers the hosted provider, registers or uses its approved client, and runs Authorization Code with S256 PKCE. Login, signup, callback validation, consent, refresh and revocation belong to the provider and Muse, not invoice tools. Only exact registered callback URLs are allowed.</li>
+<li>The client must request the canonical MCP resource and receive an access token addressed to that resource. Where a provider requires an additional audience parameter, configure it explicitly. ID tokens and tokens for other APIs are rejected.</li>
+<li>The Worker checks the configured issuer, RS256/ES256 signature, expiry, subject, audience and <code>invoice:access</code> scope. Issuer + subject identify the saved account across conversations and token refreshes. Identity is never taken from an invoice argument or an email address.</li>
+</ol><p><strong>Current status:</strong> resource-server discovery and validation are implemented. Hosted-provider configuration and real PKCE login/refresh/revocation have not been verified; do not yet claim the live connector supports completed account linking. No shared API key or anonymous mode is offered.</p>
+<p>Disconnect/revoke through the hosted provider and Muse when integrated. Revocation prevents future refresh; already issued access tokens can remain valid until expiry. Connecting an account does not accept legal terms or authorize a charge.</p>
+<h2>First-use workflow</h2><ol><li>Call <code>get_onboarding</code>; show current Terms/Privacy links, pricing and the correction policy.</li><li>Obtain explicit acceptance, then call <code>accept_terms</code> with the exact document versions returned by onboarding. Never infer consent.</li><li>Optionally save business details/logo and call <code>complete_onboarding</code>. Profile setup is optional.</li><li>Create/edit an invoice and call <code>export_draft</code>.</li><li>Call <code>quote_final</code>, present the actual fee and obtain separate user approval. Only then call <code>purchase_final</code> with the approved Stripe Link shared payment token.</li><li>Check <code>purchase_status</code> if the result is uncertain; call <code>export_final</code> only after entitlement exists.</li></ol>
+<p>All tools require an authenticated account. The four onboarding/help tools work before legal acceptance; the other 16 operations require the current version and document fingerprints. Legal documents remain publicly readable without login. Acceptance records contain document versions, fingerprints and server timestamps; agent-relayed consent is not independent proof of the user's interaction.</p>
+<h2>Request examples</h2><p>Initialize, then discover tools. Credentials are intentionally omitted from examples.</p>
+<pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;jsonrpc&quot;: &quot;2.0&quot;,
+  &quot;id&quot;: 1,
+  &quot;method&quot;: &quot;initialize&quot;,
+  &quot;params&quot;: {
+    &quot;protocolVersion&quot;: &quot;2025-03-26&quot;,
+    &quot;capabilities&quot;: {},
+    &quot;clientInfo&quot;: {
+      &quot;name&quot;: &quot;example-client&quot;,
+      &quot;version&quot;: &quot;1.0&quot;
+    }
+  }
+}</code></pre>
+<pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;jsonrpc&quot;: &quot;2.0&quot;,
+  &quot;id&quot;: 2,
+  &quot;method&quot;: &quot;tools/list&quot;
+}</code></pre>
+<pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;jsonrpc&quot;: &quot;2.0&quot;,
+  &quot;id&quot;: 3,
+  &quot;method&quot;: &quot;tools/call&quot;,
+  &quot;params&quot;: {
+    &quot;name&quot;: &quot;get_onboarding&quot;,
+    &quot;arguments&quot;: {}
+  }
+}</code></pre>
+<p>After legal acceptance, create a fictional example invoice. Generate a fresh requestId for each new invoice; reuse it only for the identical retry.</p>
+<pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;jsonrpc&quot;: &quot;2.0&quot;,
+  &quot;id&quot;: 4,
+  &quot;method&quot;: &quot;tools/call&quot;,
+  &quot;params&quot;: {
+    &quot;name&quot;: &quot;create_invoice&quot;,
+    &quot;arguments&quot;: {
+      &quot;requestId&quot;: &quot;a9dc6804-f5c5-46f2-9383-a763ad8b1c9e&quot;,
+      &quot;invoice&quot;: {
+        &quot;schemaVersion&quot;: 1,
+        &quot;language&quot;: &quot;en&quot;,
+        &quot;currency&quot;: &quot;USD&quot;,
+        &quot;title&quot;: &quot;INVOICE&quot;,
+        &quot;header&quot;: &quot;Brand strategy &amp; design&quot;,
+        &quot;footer&quot;: &quot;Prepared with care by Juniper Studio.&quot;,
+        &quot;number&quot;: &quot;2026-001&quot;,
+        &quot;business&quot;: {
+          &quot;name&quot;: &quot;Juniper Studio&quot;,
+          &quot;address&quot;: &quot;100 Example Street\nSalt Lake City, UT&quot;,
+          &quot;email&quot;: &quot;hello@example.com&quot;,
+          &quot;phone&quot;: &quot;&quot;,
+          &quot;taxId&quot;: &quot;&quot;,
+          &quot;logoId&quot;: null,
+          &quot;color&quot;: &quot;#245C55&quot;
+        },
+        &quot;client&quot;: {
+          &quot;name&quot;: &quot;Sample Client LLC&quot;,
+          &quot;address&quot;: &quot;200 Sample Avenue\nProvo, UT&quot;,
+          &quot;email&quot;: &quot;&quot;,
+          &quot;phone&quot;: &quot;&quot;,
+          &quot;taxId&quot;: &quot;&quot;
+        },
+        &quot;issueDate&quot;: &quot;2026-09-19&quot;,
+        &quot;dueDate&quot;: &quot;2026-10-19&quot;,
+        &quot;paymentTerms&quot;: &quot;Net 30&quot;,
+        &quot;paymentInstructions&quot;: &quot;Please remit payment using the instructions agreed with Juniper Studio.&quot;,
+        &quot;purchaseOrder&quot;: &quot;&quot;,
+        &quot;notes&quot;: &quot;Thank you for your business.&quot;,
+        &quot;fields&quot;: [
+          {
+            &quot;label&quot;: &quot;Project&quot;,
+            &quot;value&quot;: &quot;Autumn launch&quot;
+          }
+        ],
+        &quot;items&quot;: [
+          {
+            &quot;description&quot;: &quot;Brand discovery and visual direction&quot;,
+            &quot;quantity&quot;: &quot;2.5&quot;,
+            &quot;unit&quot;: &quot;hours&quot;,
+            &quot;unitPriceCents&quot;: 12500,
+            &quot;taxable&quot;: true
+          },
+          {
+            &quot;description&quot;: &quot;Final artwork package&quot;,
+            &quot;quantity&quot;: &quot;1&quot;,
+            &quot;unit&quot;: &quot;&quot;,
+            &quot;unitPriceCents&quot;: 45000,
+            &quot;taxable&quot;: true
+          }
+        ],
+        &quot;discount&quot;: {
+          &quot;kind&quot;: &quot;percent&quot;,
+          &quot;rate&quot;: &quot;10&quot;
+        },
+        &quot;taxes&quot;: [
+          {
+            &quot;label&quot;: &quot;Sales tax&quot;,
+            &quot;rate&quot;: &quot;7.25&quot;
+          }
+        ]
+      }
+    }
+  }
+}</code></pre>
+<h2>Tool reference</h2><section id="get_onboarding"><h3><code>get_onboarding</code></h3><p>Start here. Returns current legal text, versions, links, pricing, acceptance status and next step. Show legal links and summary and obtain explicit user consent before accept_terms.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {},
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="accept_terms"><h3><code>accept_terms</code></h3><p>Record the authenticated user's explicit acceptance of the presented Terms version and acknowledgement of the Privacy Notice. Never infer consent from connecting an account, an invoice request, or silence. Does not authorize any charge.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;termsVersion&quot;: {
+      &quot;type&quot;: &quot;string&quot;
+    },
+    &quot;privacyVersion&quot;: {
+      &quot;type&quot;: &quot;string&quot;
+    },
+    &quot;acceptTerms&quot;: {
+      &quot;type&quot;: &quot;boolean&quot;,
+      &quot;const&quot;: true
+    },
+    &quot;acknowledgePrivacy&quot;: {
+      &quot;type&quot;: &quot;boolean&quot;,
+      &quot;const&quot;: true
+    }
+  },
+  &quot;required&quot;: [
+    &quot;termsVersion&quot;,
+    &quot;privacyVersion&quot;,
+    &quot;acceptTerms&quot;,
+    &quot;acknowledgePrivacy&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="get_help"><h3><code>get_help</code></h3><p>Explain invoice creation, editing, drafts, separate payment approval, corrections, downloads, support and optional business setup. Available before terms acceptance.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {},
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="complete_onboarding"><h3><code>complete_onboarding</code></h3><p>Mark onboarding complete after current terms acceptance. Business profile and logo are optional. Does not charge or authorize payment.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {},
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="get_business"><h3><code>get_business</code></h3><p>Get saved business profile for this account.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {},
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="save_business"><h3><code>save_business</code></h3><p>Save reusable business name, address, contacts, tax ID, logo and color. Does not change existing invoices.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;business&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;name&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;minLength&quot;: 1,
+          &quot;maxLength&quot;: 160
+        },
+        &quot;address&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 600
+        },
+        &quot;email&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 160
+        },
+        &quot;phone&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 80
+        },
+        &quot;taxId&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 120
+        },
+        &quot;logoId&quot;: {
+          &quot;default&quot;: null,
+          &quot;anyOf&quot;: [
+            {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;format&quot;: &quot;uuid&quot;,
+              &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+            },
+            {
+              &quot;type&quot;: &quot;null&quot;
+            }
+          ]
+        },
+        &quot;color&quot;: {
+          &quot;default&quot;: &quot;#245C55&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;pattern&quot;: &quot;^#[0-9a-fA-F]{6}$&quot;
+        }
+      },
+      &quot;required&quot;: [
+        &quot;name&quot;,
+        &quot;address&quot;,
+        &quot;email&quot;,
+        &quot;phone&quot;,
+        &quot;taxId&quot;,
+        &quot;logoId&quot;,
+        &quot;color&quot;
+      ],
+      &quot;additionalProperties&quot;: false
+    }
+  },
+  &quot;required&quot;: [
+    &quot;business&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="list_clients"><h3><code>list_clients</code></h3><p>List saved client profiles (up to 100).</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {},
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="save_client"><h3><code>save_client</code></h3><p>Save a client under a stable UUID. Does not change existing invoices.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;clientId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;format&quot;: &quot;uuid&quot;,
+      &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+    },
+    &quot;client&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;name&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;minLength&quot;: 1,
+          &quot;maxLength&quot;: 160
+        },
+        &quot;address&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 600
+        },
+        &quot;email&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 160
+        },
+        &quot;phone&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 80
+        },
+        &quot;taxId&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 120
+        }
+      },
+      &quot;required&quot;: [
+        &quot;name&quot;,
+        &quot;address&quot;,
+        &quot;email&quot;,
+        &quot;phone&quot;,
+        &quot;taxId&quot;
+      ],
+      &quot;additionalProperties&quot;: false
+    }
+  },
+  &quot;required&quot;: [
+    &quot;clientId&quot;,
+    &quot;client&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="delete_client"><h3><code>delete_client</code></h3><p>Delete a saved client profile only; historical invoices are retained.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;clientId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;format&quot;: &quot;uuid&quot;,
+      &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;clientId&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="upload_logo"><h3><code>upload_logo</code></h3><p>Upload a PNG/JPEG logo as base64 (maximum 500 KB and 2048x2048). Returns logoId.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;mime&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;enum&quot;: [
+        &quot;image/png&quot;,
+        &quot;image/jpeg&quot;
+      ]
+    },
+    &quot;base64&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;minLength&quot;: 1,
+      &quot;maxLength&quot;: 700000
+    }
+  },
+  &quot;required&quot;: [
+    &quot;mime&quot;,
+    &quot;base64&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="create_invoice"><h3><code>create_invoice</code></h3><p>Create an editable USD invoice. Use a unique requestId UUID; reuse it only to retry the same request. Free, no charge.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;requestId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;format&quot;: &quot;uuid&quot;,
+      &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+    },
+    &quot;invoice&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;schemaVersion&quot;: {
+          &quot;default&quot;: 1,
+          &quot;type&quot;: &quot;number&quot;,
+          &quot;const&quot;: 1
+        },
+        &quot;language&quot;: {
+          &quot;default&quot;: &quot;en&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;const&quot;: &quot;en&quot;
+        },
+        &quot;currency&quot;: {
+          &quot;default&quot;: &quot;USD&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;const&quot;: &quot;USD&quot;
+        },
+        &quot;title&quot;: {
+          &quot;default&quot;: &quot;INVOICE&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 120
+        },
+        &quot;header&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 1000
+        },
+        &quot;footer&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 600
+        },
+        &quot;number&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;minLength&quot;: 1,
+          &quot;maxLength&quot;: 80
+        },
+        &quot;business&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;name&quot;: {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;minLength&quot;: 1,
+              &quot;maxLength&quot;: 160
+            },
+            &quot;address&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 600
+            },
+            &quot;email&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 160
+            },
+            &quot;phone&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 80
+            },
+            &quot;taxId&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 120
+            },
+            &quot;logoId&quot;: {
+              &quot;default&quot;: null,
+              &quot;anyOf&quot;: [
+                {
+                  &quot;type&quot;: &quot;string&quot;,
+                  &quot;format&quot;: &quot;uuid&quot;,
+                  &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+                },
+                {
+                  &quot;type&quot;: &quot;null&quot;
+                }
+              ]
+            },
+            &quot;color&quot;: {
+              &quot;default&quot;: &quot;#245C55&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;pattern&quot;: &quot;^#[0-9a-fA-F]{6}$&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;name&quot;,
+            &quot;address&quot;,
+            &quot;email&quot;,
+            &quot;phone&quot;,
+            &quot;taxId&quot;,
+            &quot;logoId&quot;,
+            &quot;color&quot;
+          ],
+          &quot;additionalProperties&quot;: false
+        },
+        &quot;client&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;name&quot;: {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;minLength&quot;: 1,
+              &quot;maxLength&quot;: 160
+            },
+            &quot;address&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 600
+            },
+            &quot;email&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 160
+            },
+            &quot;phone&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 80
+            },
+            &quot;taxId&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 120
+            }
+          },
+          &quot;required&quot;: [
+            &quot;name&quot;,
+            &quot;address&quot;,
+            &quot;email&quot;,
+            &quot;phone&quot;,
+            &quot;taxId&quot;
+          ],
+          &quot;additionalProperties&quot;: false
+        },
+        &quot;issueDate&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;pattern&quot;: &quot;^\\d{4}-\\d{2}-\\d{2}$&quot;
+        },
+        &quot;dueDate&quot;: {
+          &quot;default&quot;: null,
+          &quot;anyOf&quot;: [
+            {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;pattern&quot;: &quot;^\\d{4}-\\d{2}-\\d{2}$&quot;
+            },
+            {
+              &quot;type&quot;: &quot;null&quot;
+            }
+          ]
+        },
+        &quot;paymentTerms&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 1000
+        },
+        &quot;paymentInstructions&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 2000
+        },
+        &quot;purchaseOrder&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 120
+        },
+        &quot;notes&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 4000
+        },
+        &quot;fields&quot;: {
+          &quot;default&quot;: [],
+          &quot;maxItems&quot;: 30,
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;object&quot;,
+            &quot;properties&quot;: {
+              &quot;label&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;maxLength&quot;: 80
+              },
+              &quot;value&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;maxLength&quot;: 600
+              }
+            },
+            &quot;required&quot;: [
+              &quot;label&quot;,
+              &quot;value&quot;
+            ],
+            &quot;additionalProperties&quot;: false
+          }
+        },
+        &quot;items&quot;: {
+          &quot;minItems&quot;: 1,
+          &quot;maxItems&quot;: 200,
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;object&quot;,
+            &quot;properties&quot;: {
+              &quot;description&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;maxLength&quot;: 2000
+              },
+              &quot;quantity&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;pattern&quot;: &quot;^\\d{1,6}(\\.\\d{1,3})?$&quot;
+              },
+              &quot;unit&quot;: {
+                &quot;default&quot;: &quot;&quot;,
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;maxLength&quot;: 40
+              },
+              &quot;unitPriceCents&quot;: {
+                &quot;type&quot;: &quot;integer&quot;,
+                &quot;minimum&quot;: 0,
+                &quot;maximum&quot;: 100000000
+              },
+              &quot;taxable&quot;: {
+                &quot;default&quot;: true,
+                &quot;type&quot;: &quot;boolean&quot;
+              }
+            },
+            &quot;required&quot;: [
+              &quot;description&quot;,
+              &quot;quantity&quot;,
+              &quot;unit&quot;,
+              &quot;unitPriceCents&quot;,
+              &quot;taxable&quot;
+            ],
+            &quot;additionalProperties&quot;: false
+          }
+        },
+        &quot;discount&quot;: {
+          &quot;default&quot;: null,
+          &quot;anyOf&quot;: [
+            {
+              &quot;oneOf&quot;: [
+                {
+                  &quot;type&quot;: &quot;object&quot;,
+                  &quot;properties&quot;: {
+                    &quot;kind&quot;: {
+                      &quot;type&quot;: &quot;string&quot;,
+                      &quot;const&quot;: &quot;fixed&quot;
+                    },
+                    &quot;cents&quot;: {
+                      &quot;type&quot;: &quot;integer&quot;,
+                      &quot;minimum&quot;: 0,
+                      &quot;maximum&quot;: 100000000
+                    }
+                  },
+                  &quot;required&quot;: [
+                    &quot;kind&quot;,
+                    &quot;cents&quot;
+                  ],
+                  &quot;additionalProperties&quot;: false
+                },
+                {
+                  &quot;type&quot;: &quot;object&quot;,
+                  &quot;properties&quot;: {
+                    &quot;kind&quot;: {
+                      &quot;type&quot;: &quot;string&quot;,
+                      &quot;const&quot;: &quot;percent&quot;
+                    },
+                    &quot;rate&quot;: {
+                      &quot;type&quot;: &quot;string&quot;,
+                      &quot;pattern&quot;: &quot;^\\d{1,6}(\\.\\d{1,3})?$&quot;
+                    }
+                  },
+                  &quot;required&quot;: [
+                    &quot;kind&quot;,
+                    &quot;rate&quot;
+                  ],
+                  &quot;additionalProperties&quot;: false
+                }
+              ]
+            },
+            {
+              &quot;type&quot;: &quot;null&quot;
+            }
+          ]
+        },
+        &quot;taxes&quot;: {
+          &quot;default&quot;: [],
+          &quot;maxItems&quot;: 10,
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;object&quot;,
+            &quot;properties&quot;: {
+              &quot;label&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;maxLength&quot;: 80
+              },
+              &quot;rate&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;pattern&quot;: &quot;^\\d{1,6}(\\.\\d{1,3})?$&quot;
+              }
+            },
+            &quot;required&quot;: [
+              &quot;label&quot;,
+              &quot;rate&quot;
+            ],
+            &quot;additionalProperties&quot;: false
+          }
+        }
+      },
+      &quot;required&quot;: [
+        &quot;schemaVersion&quot;,
+        &quot;language&quot;,
+        &quot;currency&quot;,
+        &quot;title&quot;,
+        &quot;header&quot;,
+        &quot;footer&quot;,
+        &quot;number&quot;,
+        &quot;business&quot;,
+        &quot;client&quot;,
+        &quot;issueDate&quot;,
+        &quot;dueDate&quot;,
+        &quot;paymentTerms&quot;,
+        &quot;paymentInstructions&quot;,
+        &quot;purchaseOrder&quot;,
+        &quot;notes&quot;,
+        &quot;fields&quot;,
+        &quot;items&quot;,
+        &quot;discount&quot;,
+        &quot;taxes&quot;
+      ],
+      &quot;additionalProperties&quot;: false
+    }
+  },
+  &quot;required&quot;: [
+    &quot;requestId&quot;,
+    &quot;invoice&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="get_invoice"><h3><code>get_invoice</code></h3><p>Read an invoice snapshot and computed totals; omit revision for latest.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;invoiceId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;format&quot;: &quot;uuid&quot;,
+      &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+    },
+    &quot;revision&quot;: {
+      &quot;type&quot;: &quot;integer&quot;,
+      &quot;exclusiveMinimum&quot;: 0,
+      &quot;maximum&quot;: 9007199254740991
+    }
+  },
+  &quot;required&quot;: [
+    &quot;invoiceId&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="list_invoices"><h3><code>list_invoices</code></h3><p>List account invoices, newest first, 50 per page.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;offset&quot;: {
+      &quot;default&quot;: 0,
+      &quot;type&quot;: &quot;integer&quot;,
+      &quot;minimum&quot;: 0,
+      &quot;maximum&quot;: 100000
+    }
+  },
+  &quot;required&quot;: [
+    &quot;offset&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="update_invoice"><h3><code>update_invoice</code></h3><p>Replace all invoice fields using expectedRevision from get_invoice. Creates immutable revision; 409 means read and reapply edits.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;invoiceId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;format&quot;: &quot;uuid&quot;,
+      &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+    },
+    &quot;expectedRevision&quot;: {
+      &quot;type&quot;: &quot;integer&quot;,
+      &quot;exclusiveMinimum&quot;: 0,
+      &quot;maximum&quot;: 9007199254740991
+    },
+    &quot;invoice&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;schemaVersion&quot;: {
+          &quot;default&quot;: 1,
+          &quot;type&quot;: &quot;number&quot;,
+          &quot;const&quot;: 1
+        },
+        &quot;language&quot;: {
+          &quot;default&quot;: &quot;en&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;const&quot;: &quot;en&quot;
+        },
+        &quot;currency&quot;: {
+          &quot;default&quot;: &quot;USD&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;const&quot;: &quot;USD&quot;
+        },
+        &quot;title&quot;: {
+          &quot;default&quot;: &quot;INVOICE&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 120
+        },
+        &quot;header&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 1000
+        },
+        &quot;footer&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 600
+        },
+        &quot;number&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;minLength&quot;: 1,
+          &quot;maxLength&quot;: 80
+        },
+        &quot;business&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;name&quot;: {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;minLength&quot;: 1,
+              &quot;maxLength&quot;: 160
+            },
+            &quot;address&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 600
+            },
+            &quot;email&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 160
+            },
+            &quot;phone&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 80
+            },
+            &quot;taxId&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 120
+            },
+            &quot;logoId&quot;: {
+              &quot;default&quot;: null,
+              &quot;anyOf&quot;: [
+                {
+                  &quot;type&quot;: &quot;string&quot;,
+                  &quot;format&quot;: &quot;uuid&quot;,
+                  &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+                },
+                {
+                  &quot;type&quot;: &quot;null&quot;
+                }
+              ]
+            },
+            &quot;color&quot;: {
+              &quot;default&quot;: &quot;#245C55&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;pattern&quot;: &quot;^#[0-9a-fA-F]{6}$&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;name&quot;,
+            &quot;address&quot;,
+            &quot;email&quot;,
+            &quot;phone&quot;,
+            &quot;taxId&quot;,
+            &quot;logoId&quot;,
+            &quot;color&quot;
+          ],
+          &quot;additionalProperties&quot;: false
+        },
+        &quot;client&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;name&quot;: {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;minLength&quot;: 1,
+              &quot;maxLength&quot;: 160
+            },
+            &quot;address&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 600
+            },
+            &quot;email&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 160
+            },
+            &quot;phone&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 80
+            },
+            &quot;taxId&quot;: {
+              &quot;default&quot;: &quot;&quot;,
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;maxLength&quot;: 120
+            }
+          },
+          &quot;required&quot;: [
+            &quot;name&quot;,
+            &quot;address&quot;,
+            &quot;email&quot;,
+            &quot;phone&quot;,
+            &quot;taxId&quot;
+          ],
+          &quot;additionalProperties&quot;: false
+        },
+        &quot;issueDate&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;pattern&quot;: &quot;^\\d{4}-\\d{2}-\\d{2}$&quot;
+        },
+        &quot;dueDate&quot;: {
+          &quot;default&quot;: null,
+          &quot;anyOf&quot;: [
+            {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;pattern&quot;: &quot;^\\d{4}-\\d{2}-\\d{2}$&quot;
+            },
+            {
+              &quot;type&quot;: &quot;null&quot;
+            }
+          ]
+        },
+        &quot;paymentTerms&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 1000
+        },
+        &quot;paymentInstructions&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 2000
+        },
+        &quot;purchaseOrder&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 120
+        },
+        &quot;notes&quot;: {
+          &quot;default&quot;: &quot;&quot;,
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;maxLength&quot;: 4000
+        },
+        &quot;fields&quot;: {
+          &quot;default&quot;: [],
+          &quot;maxItems&quot;: 30,
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;object&quot;,
+            &quot;properties&quot;: {
+              &quot;label&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;maxLength&quot;: 80
+              },
+              &quot;value&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;maxLength&quot;: 600
+              }
+            },
+            &quot;required&quot;: [
+              &quot;label&quot;,
+              &quot;value&quot;
+            ],
+            &quot;additionalProperties&quot;: false
+          }
+        },
+        &quot;items&quot;: {
+          &quot;minItems&quot;: 1,
+          &quot;maxItems&quot;: 200,
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;object&quot;,
+            &quot;properties&quot;: {
+              &quot;description&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;maxLength&quot;: 2000
+              },
+              &quot;quantity&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;pattern&quot;: &quot;^\\d{1,6}(\\.\\d{1,3})?$&quot;
+              },
+              &quot;unit&quot;: {
+                &quot;default&quot;: &quot;&quot;,
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;maxLength&quot;: 40
+              },
+              &quot;unitPriceCents&quot;: {
+                &quot;type&quot;: &quot;integer&quot;,
+                &quot;minimum&quot;: 0,
+                &quot;maximum&quot;: 100000000
+              },
+              &quot;taxable&quot;: {
+                &quot;default&quot;: true,
+                &quot;type&quot;: &quot;boolean&quot;
+              }
+            },
+            &quot;required&quot;: [
+              &quot;description&quot;,
+              &quot;quantity&quot;,
+              &quot;unit&quot;,
+              &quot;unitPriceCents&quot;,
+              &quot;taxable&quot;
+            ],
+            &quot;additionalProperties&quot;: false
+          }
+        },
+        &quot;discount&quot;: {
+          &quot;default&quot;: null,
+          &quot;anyOf&quot;: [
+            {
+              &quot;oneOf&quot;: [
+                {
+                  &quot;type&quot;: &quot;object&quot;,
+                  &quot;properties&quot;: {
+                    &quot;kind&quot;: {
+                      &quot;type&quot;: &quot;string&quot;,
+                      &quot;const&quot;: &quot;fixed&quot;
+                    },
+                    &quot;cents&quot;: {
+                      &quot;type&quot;: &quot;integer&quot;,
+                      &quot;minimum&quot;: 0,
+                      &quot;maximum&quot;: 100000000
+                    }
+                  },
+                  &quot;required&quot;: [
+                    &quot;kind&quot;,
+                    &quot;cents&quot;
+                  ],
+                  &quot;additionalProperties&quot;: false
+                },
+                {
+                  &quot;type&quot;: &quot;object&quot;,
+                  &quot;properties&quot;: {
+                    &quot;kind&quot;: {
+                      &quot;type&quot;: &quot;string&quot;,
+                      &quot;const&quot;: &quot;percent&quot;
+                    },
+                    &quot;rate&quot;: {
+                      &quot;type&quot;: &quot;string&quot;,
+                      &quot;pattern&quot;: &quot;^\\d{1,6}(\\.\\d{1,3})?$&quot;
+                    }
+                  },
+                  &quot;required&quot;: [
+                    &quot;kind&quot;,
+                    &quot;rate&quot;
+                  ],
+                  &quot;additionalProperties&quot;: false
+                }
+              ]
+            },
+            {
+              &quot;type&quot;: &quot;null&quot;
+            }
+          ]
+        },
+        &quot;taxes&quot;: {
+          &quot;default&quot;: [],
+          &quot;maxItems&quot;: 10,
+          &quot;type&quot;: &quot;array&quot;,
+          &quot;items&quot;: {
+            &quot;type&quot;: &quot;object&quot;,
+            &quot;properties&quot;: {
+              &quot;label&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;maxLength&quot;: 80
+              },
+              &quot;rate&quot;: {
+                &quot;type&quot;: &quot;string&quot;,
+                &quot;pattern&quot;: &quot;^\\d{1,6}(\\.\\d{1,3})?$&quot;
+              }
+            },
+            &quot;required&quot;: [
+              &quot;label&quot;,
+              &quot;rate&quot;
+            ],
+            &quot;additionalProperties&quot;: false
+          }
+        }
+      },
+      &quot;required&quot;: [
+        &quot;schemaVersion&quot;,
+        &quot;language&quot;,
+        &quot;currency&quot;,
+        &quot;title&quot;,
+        &quot;header&quot;,
+        &quot;footer&quot;,
+        &quot;number&quot;,
+        &quot;business&quot;,
+        &quot;client&quot;,
+        &quot;issueDate&quot;,
+        &quot;dueDate&quot;,
+        &quot;paymentTerms&quot;,
+        &quot;paymentInstructions&quot;,
+        &quot;purchaseOrder&quot;,
+        &quot;notes&quot;,
+        &quot;fields&quot;,
+        &quot;items&quot;,
+        &quot;discount&quot;,
+        &quot;taxes&quot;
+      ],
+      &quot;additionalProperties&quot;: false
+    }
+  },
+  &quot;required&quot;: [
+    &quot;invoiceId&quot;,
+    &quot;expectedRevision&quot;,
+    &quot;invoice&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="duplicate_invoice"><h3><code>duplicate_invoice</code></h3><p>Copy latest invoice into a new unpaid invoice, with new number and stable requestId UUID.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;invoiceId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;format&quot;: &quot;uuid&quot;,
+      &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+    },
+    &quot;requestId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;format&quot;: &quot;uuid&quot;,
+      &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+    },
+    &quot;number&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;minLength&quot;: 1,
+      &quot;maxLength&quot;: 80
+    }
+  },
+  &quot;required&quot;: [
+    &quot;invoiceId&quot;,
+    &quot;requestId&quot;,
+    &quot;number&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="export_draft"><h3><code>export_draft</code></h3><p>Generate a free PDF with DRAFT watermark on every page.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;invoiceId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;format&quot;: &quot;uuid&quot;,
+      &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+    },
+    &quot;revision&quot;: {
+      &quot;type&quot;: &quot;integer&quot;,
+      &quot;exclusiveMinimum&quot;: 0,
+      &quot;maximum&quot;: 9007199254740991
+    }
+  },
+  &quot;required&quot;: [
+    &quot;invoiceId&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="quote_final"><h3><code>quote_final</code></h3><p>Quote a final PDF for USD 1.99 or return an existing/free correction entitlement. Present fee and obtain explicit user approval before purchase_final.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;invoiceId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;format&quot;: &quot;uuid&quot;,
+      &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+    },
+    &quot;revision&quot;: {
+      &quot;type&quot;: &quot;integer&quot;,
+      &quot;exclusiveMinimum&quot;: 0,
+      &quot;maximum&quot;: 9007199254740991
+    }
+  },
+  &quot;required&quot;: [
+    &quot;invoiceId&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="purchase_final"><h3><code>purchase_final</code></h3><p>Charge USD 1.99 for the quoted revision using user-approved Stripe Link SPT. Only call after explicit approval. Never ask for card details. Reuse the same quote and SPT on retry; do not create a new purchase for an uncertain result.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;quoteId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;format&quot;: &quot;uuid&quot;,
+      &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+    },
+    &quot;sharedPaymentToken&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;maxLength&quot;: 512,
+      &quot;pattern&quot;: &quot;^spt_[A-Za-z0-9_]+$&quot;
+    },
+    &quot;acceptCharge&quot;: {
+      &quot;type&quot;: &quot;boolean&quot;,
+      &quot;const&quot;: true
+    }
+  },
+  &quot;required&quot;: [
+    &quot;quoteId&quot;,
+    &quot;sharedPaymentToken&quot;,
+    &quot;acceptCharge&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="purchase_status"><h3><code>purchase_status</code></h3><p>Check/reconcile a purchase without creating a new charge.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;quoteId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;format&quot;: &quot;uuid&quot;,
+      &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;quoteId&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<section id="export_final"><h3><code>export_final</code></h3><p>Export an unwatermarked paid PDF. Within 24 hours of purchase, grants free corrections to the same invoice; previously granted revisions stay downloadable.</p><details><summary>Input JSON Schema</summary><pre style="overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"><code>{
+  &quot;$schema&quot;: &quot;https://json-schema.org/draft/2020-12/schema&quot;,
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;invoiceId&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;format&quot;: &quot;uuid&quot;,
+      &quot;pattern&quot;: &quot;^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$&quot;
+    },
+    &quot;revision&quot;: {
+      &quot;type&quot;: &quot;integer&quot;,
+      &quot;exclusiveMinimum&quot;: 0,
+      &quot;maximum&quot;: 9007199254740991
+    }
+  },
+  &quot;required&quot;: [
+    &quot;invoiceId&quot;
+  ],
+  &quot;additionalProperties&quot;: false
+}</code></pre></details></section>
+<h2>Results and files</h2><p>Ordinary MCP tool results contain a text content item whose text is a JSON-encoded operation result. Tool failures return <code>result.isError: true</code> with JSON-encoded error details in the text content. Auth/transport failures use HTTP status codes outside the tool envelope. Export tools return metadata as text plus an embedded resource with <code>mimeType: application/pdf</code> and a base64 <code>blob</code>. Its <code>invoice:///</code> URI is an identifier, not a public download link; save the returned bytes using the client file UI. No invoices or logos are stored in a public bucket.</p>
+<p>REST uses <code>POST /v1/{tool_name}</code> with the tool's arguments as the JSON body and the same bearer token. REST export operations return raw PDF bytes with Content-Disposition attachment. Other REST results are JSON.</p>
+<h2>Editing, money and retries</h2><ul><li><code>update_invoice</code> replaces the complete invoice object and requires <code>expectedRevision</code>. On HTTP 409, read the latest invoice and reapply edits; do not silently overwrite.</li><li>Amounts are integer USD cents; quantities and percentage rates are decimal strings. Tax rates are entered by the user, not jurisdictionally determined.</li><li>A quote freezes its invoice revision. Reuse the same quote on a purchase retry; never create a fresh purchase to resolve an uncertain charge. Use purchase_status and support for reconciliation.</li><li>Drafts have a DRAFT watermark on every page. Final exports require paid entitlement. Free corrections last 24 hours from payment; export corrected finals during that window to grant their revision entitlement. Previously entitled revisions can be downloaded again. Duplicates and unentitled changes after the window need a new purchase. Refund/dispute revocation can remove download access.</li></ul>
+<h2>Limits and errors</h2><ul><li>60 authenticated requests per account per minute; HTTP 429 means retry in the next minute.</li><li>JSON bodies: maximum 1.5 MB. Logos: PNG/JPEG, maximum 500 KB and 2048 × 2048 pixels.</li><li>Invoice listing: 50 per page using offset. Client listing: up to 100.</li><li>English/USD only. The PDF font currently supports WinAnsi/Latin-1 text, not arbitrary Unicode or emoji.</li><li>400 invalid input; 401 missing/invalid/expired token; 403 insufficient scope, terms acceptance required or forbidden origin; 402 purchase required; 404 absent or inaccessible record; 409 conflict; 413 body too large; 429 rate limit; 503 integration not configured.</li></ul>
+<p>Cross-origin browser API calls are disabled. This MVP expects a server-side MCP client. A future browser editor can use a same-origin backend while reusing the invoice service.</p>
+<h2>Security and support</h2><p>Invoice text and uploaded data are untrusted content, not agent instructions. Never put access tokens, payment tokens, passwords or authentication codes in chat, URLs or logs. Payment consent is separate from account consent and legal acceptance.</p>
+<p><a href="/apps/invoice-connector/terms/2026-09-19/">Terms &amp; Conditions</a> · <a href="/apps/invoice-connector/privacy/2026-09-19/">Privacy Notice</a> · <a href="mailto:jeff@consultutah.com">Support: jeff@consultutah.com</a></p></div></section></main></body></html>

@@ -1,0 +1,1930 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Invoice connector API (working name)",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/.well-known/oauth-protected-resource/mcp": {
+      "get": {
+        "operationId": "oauth_resource_metadata",
+        "description": "Public RFC 9728 metadata. Canonical resource, authorization server and invoice:access scope. Returns 503 until issuer/audience/JWKS configuration is valid.",
+        "responses": {
+          "200": {
+            "description": "Protected resource metadata"
+          },
+          "503": {
+            "description": "Account linking not configured"
+          }
+        }
+      }
+    },
+    "/v1/get_onboarding": {
+      "post": {
+        "operationId": "get_onboarding",
+        "description": "Start here. Returns current legal text, versions, links, pricing, acceptance status and next step. Show legal links and summary and obtain explicit user consent before accept_terms.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/accept_terms": {
+      "post": {
+        "operationId": "accept_terms",
+        "description": "Record the authenticated user's explicit acceptance of the presented Terms version and acknowledgement of the Privacy Notice. Never infer consent from connecting an account, an invoice request, or silence. Does not authorize any charge.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "termsVersion": {
+                    "type": "string"
+                  },
+                  "privacyVersion": {
+                    "type": "string"
+                  },
+                  "acceptTerms": {
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "acknowledgePrivacy": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "termsVersion",
+                  "privacyVersion",
+                  "acceptTerms",
+                  "acknowledgePrivacy"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/get_help": {
+      "post": {
+        "operationId": "get_help",
+        "description": "Explain invoice creation, editing, drafts, separate payment approval, corrections, downloads, support and optional business setup. Available before terms acceptance.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/complete_onboarding": {
+      "post": {
+        "operationId": "complete_onboarding",
+        "description": "Mark onboarding complete after current terms acceptance. Business profile and logo are optional. Does not charge or authorize payment.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/get_business": {
+      "post": {
+        "operationId": "get_business",
+        "description": "Get saved business profile for this account.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/save_business": {
+      "post": {
+        "operationId": "save_business",
+        "description": "Save reusable business name, address, contacts, tax ID, logo and color. Does not change existing invoices.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "business": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      },
+                      "address": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 600
+                      },
+                      "email": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "phone": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "taxId": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "logoId": {
+                        "default": null,
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "color": {
+                        "default": "#245C55",
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "address",
+                      "email",
+                      "phone",
+                      "taxId",
+                      "logoId",
+                      "color"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "business"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/list_clients": {
+      "post": {
+        "operationId": "list_clients",
+        "description": "List saved client profiles (up to 100).",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/save_client": {
+      "post": {
+        "operationId": "save_client",
+        "description": "Save a client under a stable UUID. Does not change existing invoices.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "clientId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "client": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      },
+                      "address": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 600
+                      },
+                      "email": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "phone": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "taxId": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 120
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "address",
+                      "email",
+                      "phone",
+                      "taxId"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "clientId",
+                  "client"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/delete_client": {
+      "post": {
+        "operationId": "delete_client",
+        "description": "Delete a saved client profile only; historical invoices are retained.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "clientId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": [
+                  "clientId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/upload_logo": {
+      "post": {
+        "operationId": "upload_logo",
+        "description": "Upload a PNG/JPEG logo as base64 (maximum 500 KB and 2048x2048). Returns logoId.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "mime": {
+                    "type": "string",
+                    "enum": [
+                      "image/png",
+                      "image/jpeg"
+                    ]
+                  },
+                  "base64": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 700000
+                  }
+                },
+                "required": [
+                  "mime",
+                  "base64"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/create_invoice": {
+      "post": {
+        "operationId": "create_invoice",
+        "description": "Create an editable USD invoice. Use a unique requestId UUID; reuse it only to retry the same request. Free, no charge.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "requestId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "invoice": {
+                    "type": "object",
+                    "properties": {
+                      "schemaVersion": {
+                        "default": 1,
+                        "type": "number",
+                        "const": 1
+                      },
+                      "language": {
+                        "default": "en",
+                        "type": "string",
+                        "const": "en"
+                      },
+                      "currency": {
+                        "default": "USD",
+                        "type": "string",
+                        "const": "USD"
+                      },
+                      "title": {
+                        "default": "INVOICE",
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "header": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "footer": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 600
+                      },
+                      "number": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "business": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "address": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 600
+                          },
+                          "email": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 160
+                          },
+                          "phone": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 80
+                          },
+                          "taxId": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 120
+                          },
+                          "logoId": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "color": {
+                            "default": "#245C55",
+                            "type": "string",
+                            "pattern": "^#[0-9a-fA-F]{6}$"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "address",
+                          "email",
+                          "phone",
+                          "taxId",
+                          "logoId",
+                          "color"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "client": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "address": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 600
+                          },
+                          "email": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 160
+                          },
+                          "phone": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 80
+                          },
+                          "taxId": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 120
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "address",
+                          "email",
+                          "phone",
+                          "taxId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "issueDate": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "dueDate": {
+                        "default": null,
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "paymentTerms": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "paymentInstructions": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      "purchaseOrder": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "notes": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 4000
+                      },
+                      "fields": {
+                        "default": [],
+                        "maxItems": 30,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "value": {
+                              "type": "string",
+                              "maxLength": 600
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "items": {
+                        "minItems": 1,
+                        "maxItems": 200,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "description": {
+                              "type": "string",
+                              "maxLength": 2000
+                            },
+                            "quantity": {
+                              "type": "string",
+                              "pattern": "^\\d{1,6}(\\.\\d{1,3})?$"
+                            },
+                            "unit": {
+                              "default": "",
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "unitPriceCents": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
+                            },
+                            "taxable": {
+                              "default": true,
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "description",
+                            "quantity",
+                            "unit",
+                            "unitPriceCents",
+                            "taxable"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "discount": {
+                        "default": null,
+                        "anyOf": [
+                          {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "fixed"
+                                  },
+                                  "cents": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 100000000
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "cents"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "percent"
+                                  },
+                                  "rate": {
+                                    "type": "string",
+                                    "pattern": "^\\d{1,6}(\\.\\d{1,3})?$"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "rate"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "taxes": {
+                        "default": [],
+                        "maxItems": 10,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "rate": {
+                              "type": "string",
+                              "pattern": "^\\d{1,6}(\\.\\d{1,3})?$"
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "rate"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "schemaVersion",
+                      "language",
+                      "currency",
+                      "title",
+                      "header",
+                      "footer",
+                      "number",
+                      "business",
+                      "client",
+                      "issueDate",
+                      "dueDate",
+                      "paymentTerms",
+                      "paymentInstructions",
+                      "purchaseOrder",
+                      "notes",
+                      "fields",
+                      "items",
+                      "discount",
+                      "taxes"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "requestId",
+                  "invoice"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/get_invoice": {
+      "post": {
+        "operationId": "get_invoice",
+        "description": "Read an invoice snapshot and computed totals; omit revision for latest.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "invoiceId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "invoiceId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/list_invoices": {
+      "post": {
+        "operationId": "list_invoices",
+        "description": "List account invoices, newest first, 50 per page.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "offset": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  }
+                },
+                "required": [
+                  "offset"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/update_invoice": {
+      "post": {
+        "operationId": "update_invoice",
+        "description": "Replace all invoice fields using expectedRevision from get_invoice. Creates immutable revision; 409 means read and reapply edits.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "invoiceId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "invoice": {
+                    "type": "object",
+                    "properties": {
+                      "schemaVersion": {
+                        "default": 1,
+                        "type": "number",
+                        "const": 1
+                      },
+                      "language": {
+                        "default": "en",
+                        "type": "string",
+                        "const": "en"
+                      },
+                      "currency": {
+                        "default": "USD",
+                        "type": "string",
+                        "const": "USD"
+                      },
+                      "title": {
+                        "default": "INVOICE",
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "header": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "footer": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 600
+                      },
+                      "number": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "business": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "address": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 600
+                          },
+                          "email": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 160
+                          },
+                          "phone": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 80
+                          },
+                          "taxId": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 120
+                          },
+                          "logoId": {
+                            "default": null,
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "color": {
+                            "default": "#245C55",
+                            "type": "string",
+                            "pattern": "^#[0-9a-fA-F]{6}$"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "address",
+                          "email",
+                          "phone",
+                          "taxId",
+                          "logoId",
+                          "color"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "client": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "address": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 600
+                          },
+                          "email": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 160
+                          },
+                          "phone": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 80
+                          },
+                          "taxId": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 120
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "address",
+                          "email",
+                          "phone",
+                          "taxId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "issueDate": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                      },
+                      "dueDate": {
+                        "default": null,
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "paymentTerms": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      "paymentInstructions": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      "purchaseOrder": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "notes": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 4000
+                      },
+                      "fields": {
+                        "default": [],
+                        "maxItems": 30,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "value": {
+                              "type": "string",
+                              "maxLength": 600
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "items": {
+                        "minItems": 1,
+                        "maxItems": 200,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "description": {
+                              "type": "string",
+                              "maxLength": 2000
+                            },
+                            "quantity": {
+                              "type": "string",
+                              "pattern": "^\\d{1,6}(\\.\\d{1,3})?$"
+                            },
+                            "unit": {
+                              "default": "",
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "unitPriceCents": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100000000
+                            },
+                            "taxable": {
+                              "default": true,
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "description",
+                            "quantity",
+                            "unit",
+                            "unitPriceCents",
+                            "taxable"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "discount": {
+                        "default": null,
+                        "anyOf": [
+                          {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "fixed"
+                                  },
+                                  "cents": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 100000000
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "cents"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "percent"
+                                  },
+                                  "rate": {
+                                    "type": "string",
+                                    "pattern": "^\\d{1,6}(\\.\\d{1,3})?$"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "rate"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "taxes": {
+                        "default": [],
+                        "maxItems": 10,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "rate": {
+                              "type": "string",
+                              "pattern": "^\\d{1,6}(\\.\\d{1,3})?$"
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "rate"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "schemaVersion",
+                      "language",
+                      "currency",
+                      "title",
+                      "header",
+                      "footer",
+                      "number",
+                      "business",
+                      "client",
+                      "issueDate",
+                      "dueDate",
+                      "paymentTerms",
+                      "paymentInstructions",
+                      "purchaseOrder",
+                      "notes",
+                      "fields",
+                      "items",
+                      "discount",
+                      "taxes"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "invoiceId",
+                  "expectedRevision",
+                  "invoice"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/duplicate_invoice": {
+      "post": {
+        "operationId": "duplicate_invoice",
+        "description": "Copy latest invoice into a new unpaid invoice, with new number and stable requestId UUID.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "invoiceId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "requestId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "number": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "invoiceId",
+                  "requestId",
+                  "number"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/export_draft": {
+      "post": {
+        "operationId": "export_draft",
+        "description": "Generate a free PDF with DRAFT watermark on every page.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "invoiceId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "invoiceId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated PDF bytes"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/quote_final": {
+      "post": {
+        "operationId": "quote_final",
+        "description": "Quote a final PDF for USD 1.99 or return an existing/free correction entitlement. Present fee and obtain explicit user approval before purchase_final.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "invoiceId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "invoiceId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/purchase_final": {
+      "post": {
+        "operationId": "purchase_final",
+        "description": "Charge USD 1.99 for the quoted revision using user-approved Stripe Link SPT. Only call after explicit approval. Never ask for card details. Reuse the same quote and SPT on retry; do not create a new purchase for an uncertain result.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "quoteId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "sharedPaymentToken": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "pattern": "^spt_[A-Za-z0-9_]+$"
+                  },
+                  "acceptCharge": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "quoteId",
+                  "sharedPaymentToken",
+                  "acceptCharge"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/purchase_status": {
+      "post": {
+        "operationId": "purchase_status",
+        "description": "Check/reconcile a purchase without creating a new charge.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "quoteId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": [
+                  "quoteId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    },
+    "/v1/export_final": {
+      "post": {
+        "operationId": "export_final",
+        "description": "Export an unwatermarked paid PDF. Within 24 hours of purchase, grants free corrections to the same invoice; previously granted revisions stay downloadable.",
+        "security": [
+          {
+            "accountJwt": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "invoiceId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "invoiceId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated PDF bytes"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Connect account"
+          },
+          "402": {
+            "description": "Final PDF purchase required"
+          },
+          "403": {
+            "description": "Invoice scope or current explicit terms acceptance required (or operation forbidden)"
+          },
+          "409": {
+            "description": "Revision, quote or payment conflict"
+          },
+          "503": {
+            "description": "Integration not configured"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "accountJwt": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "OAuth access token from the configured hosted authorization server, with the canonical MCP resource audience and invoice:access scope. Discover the server through RFC 9728 metadata; use Authorization Code with S256 PKCE. Not an API key or an ID token. Hosted provider configuration and real Muse verification remain pending."
+      }
+    }
+  }
+}
