@@ -11,6 +11,7 @@ Static site for Consult Utah.
 ## Structure
 
 - `/` — consultancy homepage
+- `/llms.txt` — curated public-site guide for AI tools; update when products, documentation, or launch status change
 - `/services/` — consulting offers
 - `/apps/` — app directory
 - `/apps/peptidetrax/` — PeptideTrax product page

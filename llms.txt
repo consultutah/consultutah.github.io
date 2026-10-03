@@ -1,0 +1,35 @@
+# Consult Utah
+
+> Consult Utah provides AI enablement, software consulting, workflow automation, and practical training for engineering teams and knowledge workers. It also builds and operates focused software products.
+
+This file is a guide to Consult Utah's public website and product documentation. Product-specific documentation and legal pages describe each app's capabilities and terms; the website's general policies are separate from app-specific policies.
+
+Invoice Connector is in development and is not yet available in Muse. Its published documentation describes the implementation and remaining launch requirements, not a verified live service. The planned offering includes free watermarked drafts and $1.99 USD final invoice PDFs, with separate payment approval. It generates invoice documents; it does not collect invoice balances from customers.
+
+## Company and services
+
+- [Consult Utah](https://consultutah.com/): Overview of AI enablement, automation, and custom software services.
+- [Services](https://consultutah.com/services/): AI readiness audits, engineering enablement, operator productivity systems, custom software, and AI leverage sprints.
+- [Support and contact](https://consultutah.com/support/): Consulting inquiries, app support, and privacy questions.
+
+## Apps
+
+- [App directory](https://consultutah.com/apps/): Product listings and links to app support and policies, including PeptideTrax, Unbroken Chain, and Invoice Connector.
+- [PeptideTrax](https://consultutah.com/apps/peptidetrax/): Local-first iPhone tracking for peptides, dose schedules, inventory, reminders, and reports.
+- [PeptideTrax support](https://consultutah.com/apps/peptidetrax/support/): Product help and support contact information.
+- [Invoice Connector](https://consultutah.com/apps/invoice-connector/): Planned conversational invoice creation and editing for Muse, pricing, draft/final PDF workflow, and correction policy.
+
+## Invoice Connector technical documentation
+
+- [MCP documentation](https://consultutah.com/apps/invoice-connector/docs/): Authentication, onboarding, versioned terms acceptance, tool reference, examples, payments, PDF delivery, errors, and integration status.
+- [Tool schemas](https://consultutah.com/apps/invoice-connector/docs/tools.json): Machine-readable schemas for the connector's 20 tools.
+- [OpenAPI schema](https://consultutah.com/apps/invoice-connector/docs/openapi.json): Machine-readable HTTP API specification.
+
+## Policies
+
+- [Website privacy policy](https://consultutah.com/privacy/): Privacy information for the Consult Utah website.
+- [Website terms](https://consultutah.com/terms/): General website terms of use.
+- [PeptideTrax privacy policy](https://consultutah.com/apps/peptidetrax/privacy/): App-specific data and privacy practices.
+- [Unbroken Chain privacy policy](https://consultutah.com/apps/unbroken-chain/privacy/): App-specific data and privacy practices.
+- [Invoice Connector terms](https://consultutah.com/apps/invoice-connector/terms/): Entry point to the current versioned Terms and Conditions.
+- [Invoice Connector privacy notice](https://consultutah.com/apps/invoice-connector/privacy/): Entry point to the current versioned Privacy Notice.
