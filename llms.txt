@@ -33,3 +33,9 @@ Invoice Connector is in development and is not yet available in Muse. Its publis
 - [Unbroken Chain privacy policy](https://consultutah.com/apps/unbroken-chain/privacy/): App-specific data and privacy practices.
 - [Invoice Connector terms](https://consultutah.com/apps/invoice-connector/terms/): Entry point to the current versioned Terms and Conditions.
 - [Invoice Connector privacy notice](https://consultutah.com/apps/invoice-connector/privacy/): Entry point to the current versioned Privacy Notice.
+
+## Veil
+
+- [Veil](https://consultutah.com/apps/veil/): On-device symbolic palm readings for entertainment; preparing for App Store review.
+- [Veil privacy](https://consultutah.com/apps/veil/privacy/): On-device photos, readings, and credit-wallet data practices.
+- [Veil support](https://consultutah.com/apps/veil/support/): Device requirements, readings, and consumable-credit support.
